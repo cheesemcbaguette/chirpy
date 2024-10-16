@@ -84,24 +84,55 @@ func validateChirp(body string) (string, error) {
 }
 
 func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
-	// Insert the chirp into the database
-	chirps, err := cfg.db.GetChirps(r.Context())
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Could get chirps", err)
-		return
-	}
-
-	// Map database chirps to response chirps
+	authorID := r.URL.Query().Get("author_id")
 	var resChirps []Chirp
-	for _, chirp := range chirps {
-		resChirp := Chirp{
-			ID:        chirp.ID,
-			CreatedAt: chirp.CreatedAt,
-			UpdatedAt: chirp.UpdatedAt,
-			Body:      chirp.Body,
-			UserID:    chirp.UserID,
+
+	// If the author_id is provided, filter by that author
+	if authorID != "" {
+		// Convert the author_id to a UUID
+		authorUUID, err := uuid.Parse(authorID)
+		if err != nil {
+			http.Error(w, "Invalid author_id", http.StatusBadRequest)
+			return
 		}
-		resChirps = append(resChirps, resChirp)
+
+		// Get chirps for a specific author
+		chirps, err := cfg.db.GetChirpsByAuthorID(context.Background(), authorUUID)
+		if err != nil {
+			http.Error(w, "Error retrieving chirps", http.StatusInternalServerError)
+			return
+		}
+
+		// Map database chirps to response chirps
+		for _, chirp := range chirps {
+			resChirp := Chirp{
+				ID:        chirp.ID,
+				CreatedAt: chirp.CreatedAt,
+				UpdatedAt: chirp.UpdatedAt,
+				Body:      chirp.Body,
+				UserID:    chirp.UserID,
+			}
+			resChirps = append(resChirps, resChirp)
+		}
+	} else {
+		// Get all chirps
+		chirps, err := cfg.db.GetChirps(r.Context())
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Could get chirps", err)
+			return
+		}
+
+		// Map database chirps to response chirps
+		for _, chirp := range chirps {
+			resChirp := Chirp{
+				ID:        chirp.ID,
+				CreatedAt: chirp.CreatedAt,
+				UpdatedAt: chirp.UpdatedAt,
+				Body:      chirp.Body,
+				UserID:    chirp.UserID,
+			}
+			resChirps = append(resChirps, resChirp)
+		}
 	}
 
 	// Respond with the user data
