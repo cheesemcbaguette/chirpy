@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -140,4 +141,57 @@ func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request
 
 	// Respond with the chirp data
 	respondWithJSON(w, http.StatusOK, resChirp)
+}
+
+func (cfg *apiConfig) handlerDeleteChirpByID(w http.ResponseWriter, r *http.Request) {
+	// Get the bearer token from the Authorization header
+	tokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized", err)
+		return
+	}
+
+	// Validate the JWT and retrieve the user ID
+	userID, err := auth.ValidateJWT(tokenString, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized", err)
+		return
+	}
+
+	// Get chirpID from path parameters
+	chirpIDStr := r.PathValue("chirpID")
+
+	// Parse chirpID as UUID
+	chirpID, err := uuid.Parse(chirpIDStr)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid chirp ID", err)
+		return
+	}
+
+	// Query the chirp by ID
+	chirp, err := cfg.db.GetChirpByID(r.Context(), chirpID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondWithError(w, http.StatusNotFound, "Chirp not found", err)
+		} else {
+			respondWithError(w, http.StatusInternalServerError, "Failed to retrieve chirp", err)
+		}
+		return
+	}
+
+	// Validate that the user is the author of the chirp
+	if chirp.UserID != userID {
+		respondWithError(w, http.StatusForbidden, "Unauthorized", err)
+		return
+	}
+
+	// Map the chirp from the database to the API response format
+	err = cfg.db.DeleteChirp(context.Background(), chirpID)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not delete chirp", err)
+		return
+	}
+
+	// Respond with a 204 No Content status
+	w.WriteHeader(http.StatusNoContent)
 }
