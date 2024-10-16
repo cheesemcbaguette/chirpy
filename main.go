@@ -3,13 +3,85 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
+	"strings"
 	"sync/atomic"
 )
 
+// List of profane words
+var profaneWords = []string{"kerfuffle", "sharbert", "fornax"}
+
 type apiConfig struct {
 	fileserverHits atomic.Int32
+}
+
+// Chirp represents the incoming request with a "body" field
+type Chirp struct {
+	Body string `json:"body"`
+}
+
+// CleanedChirp represents the outgoing response with a cleaned body
+type CleanedChirp struct {
+	CleanedBody string `json:"cleaned_body"`
+}
+
+// Helper function to respond with JSON
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	response, _ := json.Marshal(payload)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_, err := w.Write(response)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+// Helper function to respond with an error message
+func respondWithError(w http.ResponseWriter, code int, msg string) {
+	respondWithJSON(w, code, map[string]string{"error": msg})
+}
+
+// Handler to validate and clean chirp
+func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
+	var chirp Chirp
+
+	// Parse the incoming request body
+	if err := json.NewDecoder(r.Body).Decode(&chirp); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if len(chirp.Body) > 140 {
+		respondWithError(w, http.StatusBadRequest, "Chirp is too long")
+		return
+	}
+
+	// Clean the chirp by replacing profane words
+	cleanedBody := cleanProfaneWords(chirp.Body)
+
+	// Create the response struct with the cleaned body
+	cleanedChirp := CleanedChirp{
+		CleanedBody: cleanedBody,
+	}
+
+	// Return the cleaned chirp as JSON
+	respondWithJSON(w, http.StatusOK, cleanedChirp)
+}
+
+// Separate function to replace profane words
+func cleanProfaneWords(text string) string {
+	words := strings.Split(text, " ")
+	for i, word := range words {
+		for _, badWord := range profaneWords {
+			// Check if the word matches without punctuation
+			lowerWord := strings.ToLower(word)
+			if lowerWord == badWord {
+				words[i] = "****"
+				break
+			}
+		}
+	}
+	return strings.Join(words, " ")
 }
 
 func main() {
@@ -22,7 +94,7 @@ func main() {
 	serveMux.HandleFunc("GET /api/healthz", healthHandler)
 
 	// Validate handler
-	serveMux.HandleFunc("POST /api/validate_chirp", validateHandler)
+	serveMux.HandleFunc("POST /api/validate_chirp", validateChirpHandler)
 
 	// Serve root files directory at /app/
 	fileServer := http.FileServer(http.Dir("./"))
@@ -59,54 +131,6 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fmt.Println(err)
 	}
-}
-
-// Custom handler for /validate_chirp endpoint
-func validateHandler(w http.ResponseWriter, r *http.Request) {
-	// Set Content-Type header
-	w.Header().Set("Content-Type", "application/json")
-
-	type parameters struct {
-		// these tags indicate how the keys in the JSON should be mapped to the struct fields
-		// the struct fields must be exported (start with a capital letter) if you want them parsed
-		Body string `json:"body"`
-	}
-	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
-	err := decoder.Decode(&params)
-	if err != nil {
-		// an error will be thrown if the JSON is invalid or has the wrong types
-		// any missing fields will simply have their values in the struct set to their zero value
-		log.Printf("Error decoding parameters: %s", err)
-
-		w.WriteHeader(http.StatusInternalServerError)
-		_, err = w.Write([]byte("{\n  \"error\": \"Something went wrong\"\n}"))
-
-		if err != nil {
-			fmt.Println(err)
-		}
-	}
-
-	if len(params.Body) > 140 {
-		log.Println("Chirp is too long")
-
-		w.WriteHeader(http.StatusBadRequest)
-		_, err = w.Write([]byte("{\n  \"error\": \"Chirp is too long\"\n}"))
-
-		if err != nil {
-			fmt.Println(err)
-		}
-	} else {
-		// Write 200 OK status
-		w.WriteHeader(http.StatusOK)
-
-		// Write the body message "OK"
-		_, err = w.Write([]byte("{\n  \"valid\":true\n}"))
-		if err != nil {
-			fmt.Println(err)
-		}
-	}
-
 }
 
 // Middleware to count hits to the fileserver
