@@ -17,17 +17,17 @@ func main() {
 	serveMux := http.NewServeMux()
 
 	// Health check handler for /healthz
-	serveMux.HandleFunc("GET /healthz", healthHandler)
+	serveMux.HandleFunc("GET /api/healthz", healthHandler)
 
 	// Serve root files directory at /app/
 	fileServer := http.FileServer(http.Dir("./"))
 	serveMux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app/", fileServer)))
 
 	// Metrics handler to show the number of hits
-	serveMux.HandleFunc("GET /metrics", apiCfg.metricsHandler)
+	serveMux.HandleFunc("GET /api/metrics", apiCfg.metricsHandler)
 
 	// Reset handler to reset the hit counter
-	serveMux.HandleFunc("POST /reset", apiCfg.resetHandler)
+	serveMux.HandleFunc("POST /api/reset", apiCfg.resetHandler)
 
 	server := &http.Server{
 		Addr:    ":8080",  // Bind to localhost:8080
