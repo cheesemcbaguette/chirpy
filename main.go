@@ -24,10 +24,10 @@ func main() {
 	serveMux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app/", fileServer)))
 
 	// Metrics handler to show the number of hits
-	serveMux.HandleFunc("GET /api/metrics", apiCfg.metricsHandler)
+	serveMux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
 
 	// Reset handler to reset the hit counter
-	serveMux.HandleFunc("POST /api/reset", apiCfg.resetHandler)
+	serveMux.HandleFunc("POST /admin/reset", apiCfg.resetHandler)
 
 	server := &http.Server{
 		Addr:    ":8080",  // Bind to localhost:8080
@@ -69,13 +69,13 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 // Handler for /metrics to show the number of hits
 func (cfg *apiConfig) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	// Set Content-Type header
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	// Get the current hit count
 	hits := cfg.fileserverHits.Load()
 
 	// Write the hit count in plain text
-	_, err := w.Write([]byte(fmt.Sprintf("Hits: %d\n", hits)))
+	_, err := w.Write([]byte(fmt.Sprintf("<html>\n  <body>\n    <h1>Welcome, Chirpy Admin</h1>\n    <p>Chirpy has been visited %d times!</p>\n  </body>\n</html>", hits)))
 	if err != nil {
 		fmt.Println(err)
 	}
