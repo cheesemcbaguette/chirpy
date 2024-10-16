@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"example.com/chirpy/internal/auth"
 	"github.com/google/uuid"
 	"net/http"
+	"os"
 )
 
 func (cfg *apiConfig) handlerWebhooks(w http.ResponseWriter, r *http.Request) {
@@ -18,6 +20,19 @@ func (cfg *apiConfig) handlerWebhooks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req PolkaWebhookRequest
+
+	// Extract the API key from the header
+	apiKey, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Compare the extracted key with the one from the environment
+	if apiKey != os.Getenv("POLKA_KEY") {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
@@ -31,7 +46,7 @@ func (cfg *apiConfig) handlerWebhooks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user by ID
-	_, err := cfg.db.GetUserByID(context.Background(), req.Data.UserID)
+	_, err = cfg.db.GetUserByID(context.Background(), req.Data.UserID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respondWithError(w, http.StatusNotFound, "User not found", err)

@@ -109,3 +109,21 @@ func MakeRefreshToken() (string, error) {
 	}
 	return hex.EncodeToString(token), nil
 }
+
+var ErrInvalidAPIKey = errors.New("invalid API key format")
+
+// GetAPIKey extracts the API key from the Authorization header.
+func GetAPIKey(headers http.Header) (string, error) {
+	authHeader := headers.Get("Authorization")
+	if authHeader == "" {
+		return "", ErrInvalidAPIKey
+	}
+
+	// Expected format: "ApiKey THE_KEY_HERE"
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "ApiKey" {
+		return "", ErrInvalidAPIKey
+	}
+
+	return parts[1], nil
+}
