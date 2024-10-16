@@ -26,6 +26,11 @@ type UserParams struct {
 	Password string `json:"password"`
 }
 
+type UpdateUserRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
 func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
 	var params UserParams
 	err := json.NewDecoder(r.Body).Decode(&params)
@@ -159,4 +164,64 @@ func (cfg *apiConfig) handlerRevoke(w http.ResponseWriter, r *http.Request) {
 
 	// Respond with a 204 No Content status
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) {
+	// Get the bearer token from the Authorization header
+	tokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized", err)
+		return
+	}
+
+	// Validate the JWT and retrieve the user ID
+	userID, err := auth.ValidateJWT(tokenString, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized", err)
+		return
+	}
+
+	// Parse the request body
+	var req UpdateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Bad Request", err)
+		return
+	}
+
+	// Hash the new password
+	hashedPassword, err := auth.HashPassword(req.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Internal Server Error", err)
+		return
+	}
+
+	// Update the user in the database
+	err = cfg.db.UpdateUser(context.Background(), database.UpdateUserParams{
+		Email:          req.Email,
+		HashedPassword: hashedPassword,
+		ID:             userID,
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Internal Server Error", err)
+		return
+	}
+
+	// Respond with the updated user information (omit the password)
+	updatedUser, err := cfg.db.GetUserByEmail(context.Background(), req.Email) // Assume you have a GetUserByID function
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Omit the password from the response
+	updatedUser.HashedPassword = "" // Ensure password is not included
+
+	// Password matched, return user data (without hashed password)
+	respondWithJSON(w, http.StatusOK, User{
+		ID:        updatedUser.ID,
+		CreatedAt: updatedUser.CreatedAt,
+		UpdatedAt: updatedUser.UpdatedAt,
+		Email:     updatedUser.Email,
+		Token:     tokenString,
+	})
 }

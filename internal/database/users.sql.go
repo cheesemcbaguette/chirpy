@@ -73,3 +73,20 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEm
 	)
 	return i, err
 }
+
+const updateUser = `-- name: UpdateUser :exec
+UPDATE users
+SET email = $1, hashed_password = $2, updated_at = now()
+WHERE id = $3
+`
+
+type UpdateUserParams struct {
+	Email          string
+	HashedPassword string
+	ID             uuid.UUID
+}
+
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) error {
+	_, err := q.db.ExecContext(ctx, updateUser, arg.Email, arg.HashedPassword, arg.ID)
+	return err
+}
