@@ -52,3 +52,28 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 	// Respond with the user data
 	respondWithJSON(w, http.StatusCreated, res)
 }
+
+func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
+	// Insert the chirp into the database
+	chirps, err := cfg.db.GetChirps(r.Context())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could get chirps", err)
+		return
+	}
+
+	// Map database chirps to response chirps
+	var resChirps []Chirp
+	for _, chirp := range chirps {
+		resChirp := Chirp{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserID:    chirp.UserID,
+		}
+		resChirps = append(resChirps, resChirp)
+	}
+
+	// Respond with the user data
+	respondWithJSON(w, http.StatusOK, resChirps)
+}
