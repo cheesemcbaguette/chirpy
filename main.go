@@ -1,10 +1,16 @@
 package main
 
 import (
+	"database/sql"
+	"example.com/chirpy/internal/database"
+	"github.com/joho/godotenv"
 	"log"
 	"net/http"
+	"os"
 	"sync/atomic"
 )
+
+import _ "github.com/lib/pq"
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
@@ -13,6 +19,17 @@ type apiConfig struct {
 func main() {
 	const filepathRoot = "."
 	const port = "8080"
+
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	dbURL := os.Getenv("DB_URL")
+
+	db, err := sql.Open("postgres", dbURL)
+
+	_ = database.New(db)
 
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
