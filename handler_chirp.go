@@ -9,6 +9,7 @@ import (
 	"example.com/chirpy/internal/database"
 	"github.com/google/uuid"
 	"net/http"
+	"sort"
 	"time"
 )
 
@@ -85,6 +86,14 @@ func validateChirp(body string) (string, error) {
 
 func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 	authorID := r.URL.Query().Get("author_id")
+	sort := r.URL.Query().Get("sort")
+
+	// Default sort is ascending
+	sortOrder := "asc"
+	if sort == "desc" {
+		sortOrder = "DESC"
+	}
+
 	var resChirps []Chirp
 
 	// If the author_id is provided, filter by that author
@@ -135,8 +144,26 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	//sort array of chirps
+	sortChirpsByCreatedAt(&resChirps, sortOrder)
+
 	// Respond with the user data
 	respondWithJSON(w, http.StatusOK, resChirps)
+}
+
+func sortChirpsByCreatedAt(chirps *[]Chirp, sortOrder string) {
+	sort.SliceStable(*chirps, func(i, j int) bool {
+		createdAtI := (*chirps)[i].CreatedAt
+		createdAtJ := (*chirps)[j].CreatedAt
+
+		// Ascending order
+		if sortOrder == "asc" {
+			return createdAtI.Before(createdAtJ)
+		}
+
+		// Descending order
+		return createdAtI.After(createdAtJ)
+	})
 }
 
 func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request) {
